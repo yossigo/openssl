@@ -1407,12 +1407,14 @@ int SSL_extension_supported(unsigned int ext_type);
 # define SSL_WRITING     2
 # define SSL_READING     3
 # define SSL_X509_LOOKUP 4
+# define SSL_X509_VERIFY 5
 
 /* These will only be used when doing non-blocking IO */
 # define SSL_want_nothing(s)     (SSL_want(s) == SSL_NOTHING)
 # define SSL_want_read(s)        (SSL_want(s) == SSL_READING)
 # define SSL_want_write(s)       (SSL_want(s) == SSL_WRITING)
 # define SSL_want_x509_lookup(s) (SSL_want(s) == SSL_X509_LOOKUP)
+# define SSL_want_x509_verify(s) (SSL_want(s) == SSL_X509_VERIFY)
 
 # define SSL_MAC_FLAG_READ_MAC_STREAM 1
 # define SSL_MAC_FLAG_WRITE_MAC_STREAM 2
@@ -1776,6 +1778,7 @@ size_t SSL_get_peer_finished(const SSL *s, void *buf, size_t count);
 # define SSL_VERIFY_PEER                 0x01
 # define SSL_VERIFY_FAIL_IF_NO_PEER_CERT 0x02
 # define SSL_VERIFY_CLIENT_ONCE          0x04
+# define SSL_VERIFY_ASYNC                0x08
 
 # define OpenSSL_add_ssl_algorithms()    SSL_library_init()
 # define SSLeay_add_ssl_algorithms()     SSL_library_init()
@@ -1865,6 +1868,7 @@ DECLARE_PEM_rw(SSL_SESSION, SSL_SESSION)
 # define SSL_ERROR_ZERO_RETURN           6
 # define SSL_ERROR_WANT_CONNECT          7
 # define SSL_ERROR_WANT_ACCEPT           8
+# define SSL_ERROR_WANT_X509_VERIFY      9
 # define SSL_CTRL_NEED_TMP_RSA                   1
 # define SSL_CTRL_SET_TMP_RSA                    2
 # define SSL_CTRL_SET_TMP_DH                     3

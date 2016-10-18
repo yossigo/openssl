@@ -325,15 +325,17 @@ int ssl3_connect(SSL *s)
         case SSL3_ST_CR_CERT_A:
         case SSL3_ST_CR_CERT_B:
 #ifndef OPENSSL_NO_TLSEXT
-            /* Noop (ret = 0) for everything but EAP-FAST. */
-            ret = ssl3_check_finished(s);
-            if (ret < 0)
-                goto end;
-            if (ret == 1) {
-                s->hit = 1;
-                s->state = SSL3_ST_CR_FINISHED_A;
-                s->init_num = 0;
-                break;
+            if (s->rwstate != SSL_X509_VERIFY) {
+                /* Noop (ret = 0) for everything but EAP-FAST. */
+                ret = ssl3_check_finished(s);
+                if (ret < 0)
+                    goto end;
+                if (ret == 1) {
+                    s->hit = 1;
+                    s->state = SSL3_ST_CR_FINISHED_A;
+                    s->init_num = 0;
+                    break;
+                }
             }
 #endif
             /* Check if it is anon DH/ECDH, SRP auth */
@@ -1182,6 +1184,13 @@ int ssl3_get_server_certificate(SSL *s)
     int need_cert = 1;          /* VRS: 0=> will allow null cert if auth ==
                                  * KRB5 */
 
+    if (s->rwstate == SSL_X509_VERIFY) {
+        sc = s->session->sess_cert;
+        sk = sc->cert_chain ;
+        s->rwstate = SSL_NOTHING;
+        goto post_async_verify;
+    }
+
     n = s->method->ssl_get_message(s,
                                    SSL3_ST_CR_CERT_A,
                                    SSL3_ST_CR_CERT_B,
@@ -1252,17 +1261,19 @@ int ssl3_get_server_certificate(SSL *s)
         p = q;
     }
 
-    i = ssl_verify_cert_chain(s, sk);
-    if ((s->verify_mode != SSL_VERIFY_NONE) && (i <= 0)
+    if (!(s->verify_mode & SSL_VERIFY_ASYNC)) {
+        i = ssl_verify_cert_chain(s, sk);
+        if ((s->verify_mode != SSL_VERIFY_NONE) && (i <= 0)
 #ifndef OPENSSL_NO_KRB5
-        && !((s->s3->tmp.new_cipher->algorithm_mkey & SSL_kKRB5) &&
-             (s->s3->tmp.new_cipher->algorithm_auth & SSL_aKRB5))
+            && !((s->s3->tmp.new_cipher->algorithm_mkey & SSL_kKRB5) &&
+                 (s->s3->tmp.new_cipher->algorithm_auth & SSL_aKRB5))
 #endif                          /* OPENSSL_NO_KRB5 */
-        ) {
-        al = ssl_verify_alarm_type(s->verify_result);
-        SSLerr(SSL_F_SSL3_GET_SERVER_CERTIFICATE,
-               SSL_R_CERTIFICATE_VERIFY_FAILED);
-        goto f_err;
+            ) {
+            al = ssl_verify_alarm_type(s->verify_result);
+            SSLerr(SSL_F_SSL3_GET_SERVER_CERTIFICATE,
+                   SSL_R_CERTIFICATE_VERIFY_FAILED);
+            goto f_err;
+        }
     }
     ERR_clear_error();          /* but we keep s->verify_result */
 
@@ -1275,6 +1286,23 @@ int ssl3_get_server_certificate(SSL *s)
     s->session->sess_cert = sc;
 
     sc->cert_chain = sk;
+
+    /* SSL_VERIFY_ASYNC: We keep the certs and exit now to let the verification
+     * proceed.
+     */
+    if (s->verify_mode & SSL_VERIFY_ASYNC) {
+        s->rwstate = SSL_X509_VERIFY;
+        return -1;
+    }
+
+post_async_verify:
+    if (s->verify_result != X509_V_OK) {
+        al = ssl_verify_alarm_type(s->verify_result);
+        SSLerr(SSL_F_SSL3_GET_SERVER_CERTIFICATE,
+                SSL_R_CERTIFICATE_VERIFY_FAILED);
+        goto f_err;
+    }
+
     /*
      * Inconsistency alert: cert_chain does include the peer's certificate,
      * which we don't include in s3_srvr.c

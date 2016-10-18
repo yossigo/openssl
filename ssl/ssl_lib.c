@@ -2757,6 +2757,9 @@ int SSL_get_error(const SSL *s, int i)
     if ((i < 0) && SSL_want_x509_lookup(s)) {
         return (SSL_ERROR_WANT_X509_LOOKUP);
     }
+    if ((i < 0) && SSL_want_x509_verify(s)) {
+        return (SSL_ERROR_WANT_X509_VERIFY);
+    }
 
     if (i == 0) {
         if (s->version == SSL2_VERSION) {
