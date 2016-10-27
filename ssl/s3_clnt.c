@@ -1300,6 +1300,7 @@ post_async_verify:
         al = ssl_verify_alarm_type(s->verify_result);
         SSLerr(SSL_F_SSL3_GET_SERVER_CERTIFICATE,
                 SSL_R_CERTIFICATE_VERIFY_FAILED);
+        sk = NULL;
         goto f_err;
     }
 
